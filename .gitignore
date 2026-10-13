@@ -1,0 +1,12 @@
+# Local IDE settings and build artifacts
+.idea/
+*.exe
+/bin/
+
+# Local credentials; examples must contain placeholders only
+.env
+.env.*
+!.env.example
+
+# Task workspaces created in later phases
+/workspaces/
