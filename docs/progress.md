@@ -1,14 +1,14 @@
 # CodePilot-Go 开发进度
 
-更新日期：2026-10-13
+更新日期：2026-10-14
 
 ## 当前阶段与代码版本
 
-- Phase 1：基础服务与最小 Tool Calling 技术验收通过；正在收尾文档与首次 Git 提交，随后进入 Phase 2。
+- Phase 1：基础服务、最小 Tool Calling 及首次 Git 提交已完成；进入 Phase 2 第 1 批：独立工作区与路径校验。工作区代码已实现并完成该模块的助手验证；链接子测试待补验，完整集中验收尚未完成。
 - 当前模块：`codepilot-go`。
 - 用户回传实际 Go 工具链：`go version go1.27.1 windows/amd64`；与 `go.mod` 声明一致。
 - 已安装依赖：Gin `v1.12.0`、Eino `v0.9.21`、OpenAI 兼容适配器 `v0.1.13`、Sonic `v1.15.4`、Sonic Loader `v0.5.2`；助手已核对当前 `go.mod`。
-- Git 已初始化，尚无提交；当前代码版本按工作区文件记录。
+- Git 基线提交：`804bb14`（`feat: complete phase 1 service and tool calling`）；助手于 2026-10-14 再次核对 HEAD。工作区代码、注释与教学文档等改动尚未提交，暂存内容由用户管理。
 
 ## 已通过的验收
 
@@ -22,6 +22,7 @@
 - DeepSeek `deepseek-flash` 模型实际发出工具调用，程序执行 `get_project_info` 并回传 `{"language":"Go"}`，最终输出 `PASS model_calls=2 tool_calls=1 answer=Go`。
 - 清除 `DEEPSEEK_API_KEY` 后，程序在模型请求前报缺少环境变量，退出码为 1。
 - 证据来源：用户于 2026-10-13 回传完整服务日志和 PowerShell 验收输出；助手已核对最新源码，未独立复现运行结果。
+- 用户回传首次 Git 提交、`git diff --cached --check` 无错误，以及 Docker 客户端与引擎版本输出；引擎为 Docker Desktop 4.94.0 / Engine 29.8.2，容器类型为 `linux`。助手独立核对 Git 提交，未独立连接 Docker 引擎。
 
 ## 当前功能批次
 
@@ -33,7 +34,13 @@
 - 模型连通性、工具实际执行及缺少密钥的失败路径已由用户运行验证；助手未独立编译或调用付费模型。
 - 首个工具只返回受控的预定义项目信息，不读取或执行目标仓库代码。
 - 已补充可复现的 `README.md` 与 `.gitignore`；后者排除本地 IDE 配置、构建产物、密钥文件和后续任务工作区。
-- 尚无 Git 提交；用户需要重新暂存完整源码、依赖及文档后创建首次提交。
+- 首次 Git 提交已完成，不再重复 Phase 1 验收或暂存步骤。
+- Phase 2 第 1 批教学范围：固定授权的闭区间示例、每次创建独立目录、普通文件内容复制、严格读写白名单、`os.Root` 路径约束、64 KiB 单文件上限及取消检查；实现代码与集中验收步骤见 `docs/phase2-01-workspace.md`，由用户亲手创建源码和运行。
+- 该批次暂不执行目标仓库代码；`testdata` 目录与独立模块用于避免主模块测试意外运行示例。最小 Docker 沙箱及执行/重试预算完成后才复现目标 Bug。
+- 助手及审查子代理已静态复核本批讲义代码、测试与 Windows 句柄清理顺序；`os.Root`、`rand.Text` 和 Go 包发现规则已核对 Go 1.27.1 官方文档。此前助手终端未找到 Go；2026-10-14 已确认可用工具链为 `go1.27.1 windows/amd64`。
+- 用户授权重写注释后，助手已为 `internal/workspace/workspace.go` 与 `workspace_test.go` 补齐包、函数和独立功能段的中文说明，覆盖职责、数据流、权限边界、清理顺序、取消检查及测试覆盖范围；已格式化，并用 Go scanner 比较修改前后的非注释词法单元，确认未改变代码逻辑或断言。
+- 助手实际执行 `go test -mod=readonly ./internal/workspace -count=1 -v`，退出码为 0：副本隔离、路径拒绝、测试文件写保护、读写大小上限、预取消、创建失败清理及关闭后拒绝测试通过。`TestRejectSymlink/source` 与 `TestRejectSymlink/workspace` 因 Windows 缺少符号链接创建权限（错误 1314）跳过，不记为已验证。
+- 助手实际执行 `go vet -mod=readonly ./internal/workspace`，退出码为 0；相关文件的 `git diff --check` 无空白错误。以上测试只操作临时文件中的字节，没有编译或执行目标 Bug 示例代码，也没有请求模型。
 
 ## 未解决问题与下一批次
 
@@ -41,8 +48,9 @@
 - Windows PowerShell 验收命令使用 `Invoke-WebRequest -UseBasicParsing`，避免网页解析确认提示。
 - 60 秒模型调用总超时的触发、错误工具参数等预算/拒绝路径尚未分别动态验证；代码已核对，不把这些情况记为测试通过。
 - 尚未实现 HTTP Agent 接口、任务管理、Docker 测试沙箱或真实仓库修复。
-- Phase 2 下一批：独立工作区与路径校验；目标代码首次执行前必须补齐最小 Docker 沙箱、执行超时及迭代/重试上限。
-- Docker 客户端可用（29.8.2、desktop-linux），但助手执行环境访问引擎命名管道被权限拦住；不能据此判断用户终端的 Docker 引擎是否可用。
+- 当前待验收：主模块的完整集中检查与本批 Git 提交；两个链接子测试需在具有相应权限的环境中补验，可按讲义安排在后续 Linux 沙箱批次完成。读取时文件增长、检查后路径替换、运行中取消或超时及原子回滚尚无专门动态验收，不将本次测试结果扩展为这些能力的证明。
+- 下一批在本批验收后接入检索/Diff，随后补齐最小 Docker 沙箱、执行超时及迭代/重试上限，再首次执行目标代码。
+- 用户终端已确认 Docker 引擎可用；不要求重复验证 `docker version` 或容器类型。
 
 ## Phase 1 里程碑复盘
 
