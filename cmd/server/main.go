@@ -8,11 +8,17 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
-
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	if err := godotenv.Load(".env"); err != nil &&
+		!errors.Is(err, os.ErrNotExist) {
+		logger.Error("加载 .env 失败，请检查文件权限与格式")
+		os.Exit(1)
+	}
 
 	addr := os.Getenv("CODEPILOT_HTTP_ADDR")
 	if addr == "" {

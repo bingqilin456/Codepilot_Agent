@@ -12,6 +12,7 @@ import (
 	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/schema"
+	"github.com/joho/godotenv"
 )
 
 type ProjectInput struct {
@@ -24,6 +25,12 @@ type ProjectInfo struct {
 
 func main() {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, nil)))
+
+	if err := godotenv.Load(".env"); err != nil &&
+		!errors.Is(err, os.ErrNotExist) {
+		slog.Error("加载 .env 失败，请检查文件权限与格式")
+		os.Exit(1)
+	}
 
 	if err := run(); err != nil {
 		message := err.Error()
@@ -49,9 +56,9 @@ func run() error {
 
 	maxTokens := 512
 	cm, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
-		APIKey:    apiKey,
-		BaseURL:   "https://api.deepseek.com",
-		Model:     "deepseek-flash",
+		APIKey:              apiKey,
+		BaseURL:             "https://api.deepseek.com",
+		Model:               "deepseek-flash",
 		MaxCompletionTokens: &maxTokens,
 
 		ExtraFields: map[string]any{
