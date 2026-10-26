@@ -28,11 +28,14 @@ var (
 	ErrNotRegular = errors.New("workspace: regular file required")
 )
 
-// Workspace 持有一个任务副本的绝对路径和目录句柄，与原始示例及其他任务副本分开。
-// dir 供外层程序定位结果，root 用于受控读写；调用者使用结束后负责 Close。
+// Workspace 持有任务副本及原始内容快照，文件接口不能修改内存中的比较基准。
+// 生成 Diff 时先完整检查修改范围，使用结束后由调用者 Close 释放根句柄。
 type Workspace struct {
 	dir  string
 	root *os.Root
+	// original 保存 Prepare 时的原始字节，不放在可修改的工作区内。
+	// ReadFile 返回新读取内容，WriteFile 只操作磁盘，都不会暴露或重置这个基准。
+	original map[string][]byte
 }
 
 // Dir 返回工作区的绝对路径，便于外层程序检查目录和组织后续执行环境。
@@ -102,6 +105,10 @@ func Prepare(ctx context.Context, sourceDir, parentDir string) (_ *Workspace, re
 		return nil, err
 	}
 
+	// 三份快照内容的总长度最多 3×64 KiB，不含 map 与切片容量开销。
+	// 快照随 Workspace 生命周期保留，不重新读取变化后的源目录。
+	original := make(map[string][]byte, 3)
+
 	// 只按固定清单复制三个文件，不递归导入 .env、.git 或源目录中的其他内容。
 	// readRegular 同时检查取消、普通文件类型与读取上限；复制顺序也便于测试部分失败后的清理。
 	for _, name := range []string{"go.mod", "range.go", "range_test.go"} {
@@ -128,9 +135,14 @@ func Prepare(ctx context.Context, sourceDir, parentDir string) (_ *Workspace, re
 		if writeErr == nil && n != len(data) {
 			writeErr = io.ErrShortWrite
 		}
+
+		// 写入和关闭均成功后保留本轮读取的原始字节，创建失败不交付部分快照。
+		// 文件工具后续重新读写磁盘，不会修改这个 data 切片。
 		if err := errors.Join(writeErr, file.Close()); err != nil {
 			return nil, err
 		}
+		original[name] = data
+
 	}
 
 	// 完成全部复制后最后检查一次取消，只有仍然有效的任务才交付工作区。
@@ -139,7 +151,15 @@ func Prepare(ctx context.Context, sourceDir, parentDir string) (_ *Workspace, re
 		return nil, err
 	}
 	keep = true
-	return &Workspace{dir: filepath.Join(absoluteParent, taskName), root: taskRoot}, nil
+
+	// 成功时把根句柄和初始字节一起交给调用者；原始目录的句柄仍由本函数释放。
+	// 该对象生成 Diff 后再 Close，基准不会随每次修改或生成 Diff 漂移。
+	return &Workspace{
+		dir:      filepath.Join(absoluteParent, taskName),
+		root:     taskRoot,
+		original: original,
+	}, nil
+
 }
 
 // checkName 按原始文件名判定业务权限：三个文件可读，只有 range.go 可写。
